@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scorecard AI & Automatizari — EOS KSI Romania</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --red: #EA0029; --green: #2F7C85; --black: #31171F;
+  --white: #fff; --gl: #F0F0F0; --gm: #D0D0D0; --gd: #595959;
+  --border: #D8D8D8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 13px; background: #f5f5f5; color: var(--black); }
+.app { display: flex; height: 100vh; }
+.sidebar { width: 260px; min-width: 260px; background: var(--black); display: flex; flex-direction: column; overflow: hidden; }
+.main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+.sidebar-logo { padding: 18px 18px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.sidebar-logo .eos { font-size: 26px; font-weight: 700; color: var(--red); letter-spacing: -1px; }
+.sidebar-logo .sub { font-size: 10px; color: rgba(255,255,255,0.45); margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
+.sidebar-section { padding: 12px 18px 6px; font-size: 10px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.8px; }
+.person-list { flex: 1; overflow-y: auto; padding: 0 10px 6px; }
+.person-item { padding: 9px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.15s; margin-bottom: 2px; position: relative; }
+.person-item:hover { background: rgba(255,255,255,0.07); }
+.person-item.active { background: rgba(234,0,41,0.18); border-left: 3px solid var(--red); padding-left: 7px; }
+.person-item.finalized { opacity: 0.7; }
+.person-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--gd); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; flex-shrink: 0; }
+.person-avatar.scored { background: var(--green); }
+.person-avatar.final { background: #2a6e3f; }
+.person-info { flex: 1; min-width: 0; }
+.person-name { font-size: 12px; color: rgba(255,255,255,0.88); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.person-meta { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+.person-meta.pst { color: #6EC6B0; }
+.person-meta.st { color: #F0C060; }
+.person-meta.sst { color: #F07070; }
+.badge-final { font-size: 9px; background: rgba(46,160,80,0.25); color: #6EC6B0; border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+.btn-add { margin: 0 10px 6px; padding: 9px; background: rgba(234,0,41,0.15); border: 1px solid rgba(234,0,41,0.4); border-radius: 6px; color: rgba(255,255,255,0.8); font-size: 12px; cursor: pointer; text-align: center; transition: background 0.15s; }
+.btn-add:hover { background: rgba(234,0,41,0.3); }
+.btn-export-xl { margin: 0 10px 14px; padding: 9px; background: var(--green); border: none; border-radius: 6px; color: white; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; transition: opacity 0.15s; }
+.btn-export-xl:hover { opacity: 0.85; }
+
+.topbar { background: white; border-bottom: 1px solid var(--border); padding: 0 24px; height: 52px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.topbar h1 { font-size: 14px; font-weight: 600; color: var(--black); }
+.score-badge { font-size: 20px; font-weight: 700; color: var(--black); }
+.calificativ { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.cal-none { background: var(--gl); color: var(--gd); }
+.cal-sst { background: #FDEAED; color: var(--red); }
+.cal-st { background: #FFF8E1; color: #8B6914; }
+.cal-pst { background: #E0F2F1; color: var(--green); }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+.btn-pdf { padding: 7px 14px; background: white; border: 1.5px solid var(--gm); border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--black); transition: border-color 0.15s; }
+.btn-pdf:hover { border-color: var(--green); color: var(--green); }
+.btn-finalize { padding: 7px 16px; background: var(--green); border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: white; transition: opacity 0.15s; }
+.btn-finalize:hover { opacity: 0.85; }
+.btn-delete { padding: 6px 10px; background: transparent; border: 1px solid rgba(234,0,41,0.3); border-radius: 5px; color: var(--red); font-size: 11px; cursor: pointer; }
+.btn-delete:hover { background: #FDEAED; }
+.finalized-banner { background: #E0F2F1; border: 1px solid #2F7C85; border-radius: 6px; padding: 10px 16px; margin-bottom: 14px; font-size: 12px; color: var(--green); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.finalized-banner .checkmark { font-size: 16px; }
+
+.form-area { padding: 20px 24px; flex: 1; }
+.section-card { background: white; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.sc-header { background: var(--black); padding: 8px 16px; font-size: 11px; font-weight: 600; color: white; text-transform: uppercase; letter-spacing: 0.6px; }
+.sc-header.red { background: var(--red); }
+.sc-header.green { background: var(--green); }
+.info-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+.info-field { padding: 11px 16px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.info-field:nth-child(4n) { border-right: none; }
+.info-field:nth-last-child(-n+4) { border-bottom: none; }
+.info-field label { display: block; font-size: 10px; color: var(--gd); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.info-field input { width: 100%; border: none; outline: none; font-size: 13px; color: var(--black); background: transparent; font-family: Arial, sans-serif; }
+.info-field input:disabled { color: var(--gd); }
+
+table.ct { width: 100%; border-collapse: collapse; }
+table.ct th { background: var(--red); color: white; padding: 8px 8px; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #c20020; }
+table.ct th:first-child { text-align: left; }
+.subrow td { background: var(--gm); font-size: 10px; font-weight: 600; text-align: center; padding: 4px 6px; border: 1px solid var(--border); color: var(--black); }
+table.ct td { padding: 7px 8px; border: 1px solid var(--border); vertical-align: middle; line-height: 1.4; font-size: 11px; }
+.crit-cell { background: var(--gl); font-weight: 600; text-align: center; color: var(--black); }
+.gray-desc { background: var(--gl); }
+.score-sel { width: 50px; text-align: center; font-size: 14px; font-weight: 700; border: 1.5px solid var(--green); border-radius: 5px; padding: 4px; background: #EAF4F5; color: var(--green); outline: none; cursor: pointer; }
+.score-sel:disabled { opacity: 0.6; cursor: not-allowed; }
+.comment-inp { width: 100%; border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 11px; font-family: Arial, sans-serif; resize: none; background: white; color: var(--black); }
+.comment-inp:disabled { background: var(--gl); color: var(--gd); }
+.total-row td { background: var(--green); color: white; font-weight: 700; font-size: 13px; padding: 9px 8px; border: 1px solid #1e5e66; }
+.scale-table { width: 100%; border-collapse: collapse; }
+.scale-table th { background: var(--gd); color: white; padding: 6px 12px; font-size: 11px; text-align: center; border: 1px solid #444; }
+.scale-table td { background: var(--gl); padding: 6px 12px; font-size: 11px; text-align: center; border: 1px solid var(--border); color: var(--black); }
+.sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 4px; }
+.sig-box { background: white; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.sig-content { padding: 12px 16px; }
+.sig-line { border-top: 1px dashed var(--gm); margin-top: 22px; }
+.sig-labels { display: flex; gap: 24px; font-size: 11px; color: var(--gd); }
+
+.empty-state { padding: 60px 28px; text-align: center; color: var(--gd); flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.empty-icon { font-size: 40px; color: var(--gm); margin-bottom: 14px; }
+.empty-state p { margin-bottom: 16px; line-height: 1.6; }
+.empty-state button { padding: 10px 24px; background: var(--red); border: none; border-radius: 6px; color: white; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+/* PDF PRINT */
+@media print {
+  .app { display: block; height: auto; }
+  .sidebar { display: none !important; }
+  .topbar { display: none !important; }
+  .main { overflow: visible; }
+  .form-area { padding: 0; }
+  .finalized-banner { display: none; }
+  .section-card { break-inside: avoid; margin-bottom: 10px; }
+  body { font-size: 11px; background: white; }
+  .pdf-header { display: flex !important; }
+  .pdf-footer { display: block !important; }
+  @page { margin: 15mm 12mm; size: A4; }
+}
+.pdf-header { display: none; align-items: center; gap: 16px; padding-bottom: 10px; border-bottom: 3px solid var(--red); margin-bottom: 14px; }
+.pdf-header .eos-logo { font-size: 32px; font-weight: 700; color: var(--red); letter-spacing: -1px; }
+.pdf-header .pdf-title { font-size: 14px; font-weight: 700; color: var(--black); }
+.pdf-header .pdf-sub { font-size: 10px; color: var(--gd); margin-top: 2px; }
+.pdf-footer { display: none; text-align: center; font-size: 9px; color: var(--gd); padding-top: 10px; border-top: 1px solid var(--gm); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="eos">eOs</div>
+    <div class="sub">Scorecard AI & Automatizari</div>
+  </div>
+  <div class="sidebar-section">Persoane evaluate</div>
+  <div class="person-list" id="person-list"></div>
+  <button class="btn-add" onclick="addPerson()">+ Evaluare noua</button>
+  <button class="btn-export-xl" onclick="exportExcel()">&#8595; Export Excel (toate)</button>
+</div>
+
+<div class="main" id="main-area">
+  <div class="empty-state">
+    <div class="empty-icon">&#9881;</div>
+    <p>Nicio evaluare activa.<br>Adauga prima persoana pentru a incepe.</p>
+    <button onclick="addPerson()">+ Evaluare noua</button>
+  </div>
+</div>
+
+</div>
+<script>
+const CRITERIA = [
+  { criteriu:"Proiecte AI & Automatizari", obiectiv:"Implicare in proiecte AI si automatizari", indicator:"Nr. proiecte la care a contribuit activ in trimestru", pondere:0.25, sst:"0 proiecte noi; rol pasiv sau absent", st:"1 proiect activ cu contributie dovedita (analiza, testare, implementare partiala)", pst:"2+ proiecte cu contributie substantiala si livrabile concrete finalizate" },
+  { criteriu:"", obiectiv:"Calitatea livrabilor in proiectele AI", indicator:"Livrabilele sunt complete, documentate si utile stakeholderilor", pondere:0.15, sst:"Livrabile incomplete, nedocumentate sau returnate cu obiectii majore", st:"Livrabile complete, functionale, documentatie de baza acceptata", pst:"Livrabile excelente, bine documentate, refolosite ca bune practici" },
+  { criteriu:"Adoptie AI in Cultura Org.", obiectiv:"Initiative de implementare AI in cultura organizationala", indicator:"Nr. initiative/actiuni pentru cresterea gradului de adoptie AI", pondere:0.15, sst:"Nicio initiativa proprie; implicare minima la cerere", st:"1-2 initiative sustinute (workshop, comunicare interna, ghid tool AI)", pst:"3+ initiative cu impact masurabil: crestere utilizare tool, feedback pozitiv" },
+  { criteriu:"", obiectiv:"Masurarea si raportarea gradului de adoptie AI", indicator:"Chestionare, analize, rapoarte privind adoptia AI in organizatie", pondere:0.10, sst:"Nicio analiza sau raportare; date lipsa sau incorecte", st:"Cel putin 1 analiza/chestionar complet cu concluzii prezentate echipei", pst:"Analiza sistematica trimestriala cu recomandari actionate; metodologie documentata" },
+  { criteriu:"Evenimente AI", obiectiv:"Organizare/contributie la evenimente AI (hackathon, AI summit etc.)", indicator:"Grad de implicare in organizarea si desfasurarea evenimentelor AI", pondere:0.15, sst:"Nicio implicare in evenimente AI in trimestrul evaluat", st:"Participare activa la organizarea unui eveniment (logistica, comunicare, facilitare)", pst:"Initierea si coordonarea unui eveniment AI cu livrabile clare si feedback pozitiv" },
+  { criteriu:"", obiectiv:"Impactul evenimentelor organizate", indicator:"Nr. participanti, rating eveniment, actiuni concrete generate", pondere:0.05, sst:"Eveniment anulat, participare slaba (<50% tinta) sau feedback negativ", st:"Eveniment conform planului, participare la target, feedback pozitiv", pst:"Participare peste target, feedback excelent si cel putin 1 actiune concreta generata" },
+  { criteriu:"Dezvoltare Personala AI", obiectiv:"Dobandirea si aplicarea de noi competente AI", indicator:"Cursuri/certificari/experimente AI finalizate si aplicate in activitate", pondere:0.10, sst:"Nicio activitate de invatare AI in trimestru", st:"Cel putin 1 curs/certificare finalizata sau tool AI nou testat si documentat", pst:"2+ cursuri/certificari sau proiect personal AI cu aplicabilitate demonstrata" },
+  { criteriu:"", obiectiv:"Diseminarea cunostintelor AI in echipa", indicator:"Prezentari interne, ghiduri, sesiuni Q&A pe teme AI pentru colegi", pondere:0.05, sst:"Nicio sesiune de diseminare; cunostintele nu au fost impartasite", st:"Cel putin 1 sesiune de sharing (prezentare, demo, ghid scris) in trimestru", pst:"Sesiuni regulate de diseminare + material reutilizabil creat (ghid, tutorial, template)" },
+];
+
+let persons = [];
+let activeId = null;
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+function defaultPerson() {
+  return { id: uid(), marca:"", nume:"Persoana noua", echipa:"", departament:"", perioada:"", data_eval:"", evaluator:"", manager:"", scores: new Array(CRITERIA.length).fill(0), comments: new Array(CRITERIA.length).fill(""), finalized: false };
+}
+
+function calcScore(p) { return CRITERIA.reduce((s,c,i) => s + c.pondere * p.scores[i], 0); }
+
+function calificativ(score) {
+  if (score <= 0) return { label:"—", cls:"cal-none" };
+  if (score < 1.8) return { label:"Sub Standard (SST)", cls:"cal-sst" };
+  if (score <= 2.69) return { label:"Standard (ST)", cls:"cal-st" };
+  return { label:"Peste Standard (PST)", cls:"cal-pst" };
+}
+
+function eligibilitate(score) {
+  if (score < 1.8) return "Nu este eligibil pentru bonus";
+  if (score <= 2.69) return "Bonus partial";
+  return "Bonus integral";
+}
+
+function initials(name) {
+  return name.trim().split(" ").slice(0,2).map(w=>w[0]||"").join("").toUpperCase() || "?";
+}
+
+function addPerson() {
+  saveCurrentInputs();
+  const p = defaultPerson();
+  persons.push(p);
+  activeId = p.id;
+  renderSidebar();
+  renderMain();
+}
+
+function selectPerson(id) {
+  saveCurrentInputs();
+  activeId = id;
+  renderSidebar();
+  renderMain();
+}
+
+function deletePerson(id) {
+  if (!confirm("Stergi aceasta evaluare?")) return;
+  persons = persons.filter(p => p.id !== id);
+  if (activeId === id) activeId = persons.length ? persons[persons.length-1].id : null;
+  renderSidebar();
+  renderMain();
+}
+
+function finalizePerson() {
+  saveCurrentInputs();
+  const p = persons.find(x => x.id === activeId);
+  if (!p) return;
+  const score = calcScore(p);
+  if (score <= 0) { alert("Completeaza cel putin un scor inainte de finalizare."); return; }
+  if (!confirm("Finalizeaza evaluarea pentru " + p.nume + "? Dupa finalizare campurile nu mai pot fi modificate.")) return;
+  p.finalized = true;
+  // add new person and switch to it
+  const np = defaultPerson();
+  persons.push(np);
+  activeId = np.id;
+  renderSidebar();
+  renderMain();
+}
+
+function saveCurrentInputs() {
+  const p = persons.find(x => x.id === activeId);
+  if (!p || p.finalized) return;
+  ["marca","nume","echipa","departament","perioada","data_eval","evaluator","manager"].forEach(f => {
+    const el = document.getElementById("inf_"+f);
+    if (el) p[f] = el.value;
+  });
+  CRITERIA.forEach((_,i) => {
+    const sel = document.getElementById("score_"+i);
+    const com = document.getElementById("comment_"+i);
+    if (sel) p.scores[i] = parseFloat(sel.value)||0;
+    if (com) p.comments[i] = com.value;
+  });
+}
+
+function liveUpdate() {
+  saveCurrentInputs();
+  const p = persons.find(x => x.id === activeId);
+  if (!p) return;
+  const score = calcScore(p);
+  const cal = calificativ(score);
+  const sd = document.getElementById("score-display");
+  if (sd) sd.textContent = score.toFixed(2);
+  const sb = document.querySelector(".score-badge");
+  if (sb) sb.textContent = score > 0 ? score.toFixed(2) : "—";
+  const ce = document.querySelector(".calificativ");
+  if (ce) { ce.textContent = cal.label; ce.className = "calificativ " + cal.cls; }
+  const th = document.querySelector(".topbar h1");
+  if (th) th.textContent = "Evaluare: " + (p.nume || "Persoana noua");
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const list = document.getElementById("person-list");
+  list.innerHTML = "";
+  persons.forEach(p => {
+    const score = calcScore(p);
+    const cal = calificativ(score);
+    const hasScore = p.scores.some(s=>s>0);
+    const div = document.createElement("div");
+    div.className = "person-item" + (p.id===activeId?" active":"") + (p.finalized?" finalized":"");
+    div.onclick = () => selectPerson(p.id);
+    const scoreCls = hasScore ? (cal.cls==="cal-pst"?"pst":cal.cls==="cal-st"?"st":"sst") : "";
+    const scoreLabel = hasScore ? score.toFixed(2) + " — " + cal.label : "Neevaluat";
+    div.innerHTML = `
+      <div class="person-avatar ${p.finalized?"final":hasScore?"scored":""}">${initials(p.nume)}</div>
+      <div class="person-info">
+        <div class="person-name">${p.nume || "Persoana noua"}${p.finalized?'<span class="badge-final">final</span>':''}</div>
+        <div class="person-meta ${scoreCls}">${scoreLabel}</div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function renderMain() {
+  const main = document.getElementById("main-area");
+  if (!activeId || !persons.length) {
+    main.innerHTML = `<div class="empty-state"><div class="empty-icon">&#9881;</div><p>Nicio evaluare activa.<br>Adauga prima persoana pentru a incepe.</p><button onclick="addPerson()">+ Evaluare noua</button></div>`;
+    return;
+  }
+  const p = persons.find(x => x.id === activeId);
+  if (!p) return;
+  const score = calcScore(p);
+  const cal = calificativ(score);
+  const dis = p.finalized ? "disabled" : "";
+  const inp = p.finalized ? "disabled" : "";
+
+  main.innerHTML = `
+    <div class="topbar" id="print-hide-topbar">
+      <h1>Evaluare: ${p.nume||"Persoana noua"}</h1>
+      <span class="score-badge">${score>0?score.toFixed(2):"—"}</span>
+      <span class="calificativ ${cal.cls}">${cal.label}</span>
+      <div class="topbar-actions">
+        <button class="btn-pdf" onclick="exportPDF()">&#128438; Exporta PDF</button>
+        ${!p.finalized ? `<button class="btn-finalize" onclick="finalizePerson()">&#10003; Finalizeaza evaluarea</button>` : ''}
+        <button class="btn-delete" onclick="deletePerson('${p.id}')">&#10005;</button>
+      </div>
+    </div>
+    <div class="form-area">
+
+      <div class="pdf-header">
+        <div class="eos-logo">eOs</div>
+        <div>
+          <div class="pdf-title">Scorecard — Bonus Trimestrial AI &amp; Automatizari</div>
+          <div class="pdf-sub">EOS KSI Romania &nbsp;|&nbsp; Evaluare individuala</div>
+        </div>
+        <div style="margin-left:auto; text-align:right;">
+          <div style="font-size:11px; color:var(--gd);">Scor final</div>
+          <div style="font-size:22px; font-weight:700; color:var(--black);">${score.toFixed(2)}</div>
+          <div style="font-size:11px; font-weight:600; color:var(--green);">${cal.label}</div>
+        </div>
+      </div>
+
+      ${p.finalized ? `<div class="finalized-banner"><span class="checkmark">&#10003;</span> Evaluare finalizata — campurile nu mai pot fi modificate.</div>` : ""}
+
+      <div class="section-card">
+        <div class="sc-header">Date angajat</div>
+        <div class="info-grid">
+          <div class="info-field"><label>Marca</label><input id="inf_marca" value="${p.marca}" ${inp} oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Nume / Prenume</label><input id="inf_nume" value="${p.nume}" ${inp} oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Echipa</label><input id="inf_echipa" value="${p.echipa}" ${inp} oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Departament</label><input id="inf_departament" value="${p.departament}" ${inp} oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Perioada evaluare</label><input id="inf_perioada" value="${p.perioada}" ${inp} placeholder="ex. Q2 2025" oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Data evaluarii</label><input id="inf_data_eval" type="date" value="${p.data_eval}" ${inp} oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Evaluator</label><input id="inf_evaluator" value="${p.evaluator}" ${inp} oninput="liveUpdate()"></div>
+          <div class="info-field"><label>Manager</label><input id="inf_manager" value="${p.manager}" ${inp} oninput="liveUpdate()"></div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="sc-header red">Criterii de evaluare</div>
+        <table class="ct">
+          <colgroup>
+            <col style="width:9%"><col style="width:12%"><col style="width:13%">
+            <col style="width:5%"><col style="width:15%"><col style="width:15%">
+            <col style="width:15%"><col style="width:6%"><col style="width:10%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Criteriu</th><th>Obiectiv</th><th>Indicator</th>
+              <th>Pond.</th><th>SST (1)</th><th>ST (2)</th><th>PST (3)</th>
+              <th>Punctaj</th><th>Comentarii</th>
+            </tr>
+            <tr class="subrow">
+              <td></td><td></td><td></td><td></td>
+              <td>Sub Standard</td><td>Standard</td><td>Peste Standard</td>
+              <td></td><td></td>
+            </tr>
+          </thead>
+          <tbody>
+            ${CRITERIA.map((c,i) => `<tr>
+              <td class="crit-cell">${c.criteriu}</td>
+              <td>${c.obiectiv}</td>
+              <td>${c.indicator}</td>
+              <td style="text-align:center;font-weight:600;">${Math.round(c.pondere*100)}%</td>
+              <td class="gray-desc">${c.sst}</td>
+              <td class="gray-desc">${c.st}</td>
+              <td class="gray-desc">${c.pst}</td>
+              <td style="text-align:center;">
+                <select id="score_${i}" class="score-sel" ${dis} onchange="liveUpdate()">
+                  <option value="0">—</option>
+                  <option value="1" ${p.scores[i]==1?"selected":""}>1</option>
+                  <option value="2" ${p.scores[i]==2?"selected":""}>2</option>
+                  <option value="3" ${p.scores[i]==3?"selected":""}>3</option>
+                </select>
+              </td>
+              <td><textarea id="comment_${i}" class="comment-inp" rows="2" ${dis} oninput="liveUpdate()">${p.comments[i]}</textarea></td>
+            </tr>`).join("")}
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;">Total pondere</td>
+              <td style="text-align:center;">100%</td>
+              <td colspan="3" style="text-align:right; padding-right:10px;">Scor final (suma ponderi x punctaj):</td>
+              <td style="text-align:center;font-size:16px;" id="score-display">${score.toFixed(2)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-card">
+        <div class="sc-header">Scala de evaluare</div>
+        <table class="scale-table">
+          <thead><tr><th>Scor</th><th>Calificativ</th><th>Eligibilitate bonus</th></tr></thead>
+          <tbody>
+            <tr><td>&lt; 1.80</td><td>Sub Standard (SST)</td><td>Nu este eligibil pentru bonus</td></tr>
+            <tr><td>1.80 – 2.69</td><td>Standard (ST)</td><td>Bonus partial (ex. 50% din valoarea stabilita)</td></tr>
+            <tr><td>&gt; 2.69</td><td>Peste Standard (PST)</td><td>Bonus integral</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sig-grid">
+        <div class="sig-box">
+          <div class="sc-header">Angajat — Am luat la cunostinta</div>
+          <div class="sig-content">
+            <div class="sig-labels"><span>Data: _______________</span><span>Semnatura: _______________</span></div>
+            <div class="sig-line"></div>
+          </div>
+        </div>
+        <div class="sig-box">
+          <div class="sc-header">Superior direct / Manager</div>
+          <div class="sig-content">
+            <div class="sig-labels"><span>Data: _______________</span><span>Semnatura: _______________</span></div>
+            <div class="sig-line"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pdf-footer">EOS KSI Romania &nbsp;|&nbsp; Scorecard AI &amp; Automatizari &nbsp;|&nbsp; Generat: ${new Date().toLocaleDateString("ro-RO")}</div>
+    </div>
+  `;
+}
+
+function exportPDF() {
+  saveCurrentInputs();
+  window.print();
+}
+
+function exportExcel() {
+  saveCurrentInputs();
+  const finalized = persons.filter(p => p.finalized);
+  if (!finalized.length) { alert("Nu exista evaluari finalizate de exportat.\nFinalizeaza cel putin o evaluare inainte de export."); return; }
+
+  const wb = XLSX.utils.book_new();
+  const header = [
+    "Marca","Nume / Prenume","Echipa","Departament","Perioada","Data evaluarii","Evaluator","Manager",
+    "P1 - Implicare proiecte AI (scor)","P1 - Calitate livrabile (scor)",
+    "P2 - Initiative adoptie AI (scor)","P2 - Masurare adoptie AI (scor)",
+    "P3 - Organizare evenimente AI (scor)","P3 - Impact evenimente (scor)",
+    "P4 - Competente AI dobandite (scor)","P4 - Diseminare cunostinte (scor)",
+    "P1 - Implicare proiecte AI (comentariu)","P1 - Calitate livrabile (comentariu)",
+    "P2 - Initiative adoptie AI (comentariu)","P2 - Masurare adoptie AI (comentariu)",
+    "P3 - Organizare evenimente AI (comentariu)","P3 - Impact evenimente (comentariu)",
+    "P4 - Competente AI dobandite (comentariu)","P4 - Diseminare cunostinte (comentariu)",
+    "Scor Final","Calificativ","Eligibilitate Bonus"
+  ];
+  const rows = finalized.map(p => {
+    const score = calcScore(p);
+    const cal = calificativ(score);
+    return [
+      p.marca, p.nume, p.echipa, p.departament, p.perioada, p.data_eval, p.evaluator, p.manager,
+      ...p.scores,
+      ...p.comments,
+      parseFloat(score.toFixed(2)), cal.label, eligibilitate(score)
+    ];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws["!cols"] = header.map((_,i) => ({ wch: i < 8 ? 18 : i < 24 ? 12 : 14 }));
+  XLSX.utils.book_append_sheet(wb, ws, "Evaluari AI");
+  XLSX.writeFile(wb, "Scorecard_AI_EOS_" + new Date().toISOString().slice(0,10) + ".xlsx");
+}
+
+renderSidebar();
+renderMain();
+</script>
+</body>
+</html>
